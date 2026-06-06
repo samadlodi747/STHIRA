@@ -12,7 +12,7 @@ import {
 import { value } from "../utils/dom.js";
 import { DEBUG_STEEL_BEAM_API } from "../utils/debug.js";
 import { downloadBlob } from "../utils/download.js";
-import { paintApiFailure, paintResults, paintValidationErrors, paintWarnings, setCalculateButtonBusy, setReportButtonBusy, setWorkflowStatus } from "../rendering/steel_beam_renderer.js";
+import { paintApiFailure, paintResults, paintValidationErrors, paintWarnings, setCalculateButtonBusy, setReportButtonBusy, setWorkflowStatus } from "../rendering/steel_beam_renderer.js?v=11";
 import { validateSteelBeamInputs } from "../validation/steel_beam_validation.js";
 import { buildSteelBeamPayload } from "./steel_beam_form.js";
 
@@ -74,7 +74,12 @@ export function initSteelBeamController() {
       window.computeSteelColumnViaApi();
       return;
     }
+    // Timber: run the original in-browser take-down/workflow, then overlay the EC5 backend
+    // checks (bending/shear/deflection) on top — the original UI/workflow is preserved.
     if (legacyCompute) legacyCompute();
+    if (mode === "timberBeam" && typeof window.applyTimberEc5Overlay === "function") {
+      window.applyTimberEc5Overlay();
+    }
   }
 
   async function generateSteelBeamPdfReport() {
@@ -124,7 +129,11 @@ export function initSteelBeamController() {
       window.generateSteelColumnPdfReport();
       return;
     }
-    paintWarnings([], ["PDF report export is currently available for steel beam and steel column modes."]);
+    if (mode === "timberBeam" && typeof window.generateTimberBeamPdfReport === "function") {
+      window.generateTimberBeamPdfReport();
+      return;
+    }
+    paintWarnings([], ["PDF report export is currently available for steel beam, timber beam and steel column modes."]);
   }
 
   function bindReportButton() {

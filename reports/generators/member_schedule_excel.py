@@ -83,8 +83,20 @@ _COLUMN_COLUMNS = [
     ("Status", _status_label, None),
 ]
 
+_TIMBER_LABEL = "Timber Beam"
+_TIMBER_COLUMNS = [
+    ("Member", lambda m: _text(m.get("name")), None),
+    ("Material", lambda m: _text(m.get("material")), None),
+    ("Selected Section", lambda m: _text(m.get("section")), None),
+    ("Span (m)", lambda m: _num_or_text(m.get("length")), "0.000"),
+    ("δmax (mm)", lambda m: _text(m.get("deflectionValue")), None),
+    ("Control Utilization", _excel_util, "0.000"),
+    ("Status", _status_label, None),
+]
+
 SCHEDULE_SHEETS = [
     {"title": "Beam Schedule", "label": _BEAM_LABEL, "columns": _BEAM_COLUMNS},
+    {"title": "Timber Beam Schedule", "label": _TIMBER_LABEL, "columns": _TIMBER_COLUMNS},
     {"title": "Column Schedule", "label": _COLUMN_LABEL, "columns": _COLUMN_COLUMNS},
 ]
 
@@ -121,9 +133,10 @@ def _write_schedule_sheet(ws, columns: list, members: list[dict]) -> None:
         ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{max(ws.max_row, 1)}"
 
 
-def _write_summary_sheet(ws, *, project_name: str, created: datetime, beams: list[dict], columns: list[dict]) -> None:
-    relevant = beams + columns
-    # Identical arithmetic to the Member Schedule PDF summary.
+def _write_summary_sheet(ws, *, project_name: str, created: datetime, beams: list[dict], columns: list[dict], timber: list[dict] | None = None) -> None:
+    timber = timber or []
+    relevant = beams + timber + columns
+    # Identical arithmetic to the Member Schedule PDF summary (now including timber beams).
     utils = [u for u in (_to_float(m.get("controlValue")) for m in relevant) if u is not None]
     on_scale = [u for u in utils if u <= _OFF_SCALE_UTIL]
     flags = [_is_passing(m) for m in relevant]
@@ -136,8 +149,9 @@ def _write_summary_sheet(ws, *, project_name: str, created: datetime, beams: lis
         ("Project Name", project_name or "Not specified"),
         ("Export Date", created.strftime("%Y-%m-%d %H:%M")),
         ("Total Beams", len(beams)),
+        ("Total Timber Beams", len(timber)),
         ("Total Columns", len(columns)),
-        ("Total Members", len(beams) + len(columns)),
+        ("Total Members", len(beams) + len(timber) + len(columns)),
         ("Passing Members", passing),
         ("Failing Members", failing),
         ("Maximum Utilization", max_util),
@@ -179,7 +193,8 @@ def generate_member_schedule_excel(
 
     beams = [m for m in members if str(m.get("modeLabel")) == _BEAM_LABEL]
     columns = [m for m in members if str(m.get("modeLabel")) == _COLUMN_LABEL]
-    by_label = {_BEAM_LABEL: beams, _COLUMN_LABEL: columns}
+    timber = [m for m in members if str(m.get("modeLabel")) == _TIMBER_LABEL]
+    by_label = {_BEAM_LABEL: beams, _COLUMN_LABEL: columns, _TIMBER_LABEL: timber}
 
     for spec in SCHEDULE_SHEETS:
         ws = wb.create_sheet(title=spec["title"])
@@ -187,7 +202,7 @@ def generate_member_schedule_excel(
         _write_schedule_sheet(ws, spec["columns"], sheet_members)
 
     summary_ws = wb.create_sheet(title="Summary")
-    _write_summary_sheet(summary_ws, project_name=project_name, created=created, beams=beams, columns=columns)
+    _write_summary_sheet(summary_ws, project_name=project_name, created=created, beams=beams, columns=columns, timber=timber)
 
     buffer = BytesIO()
     wb.save(buffer)

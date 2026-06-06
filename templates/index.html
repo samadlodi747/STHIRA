@@ -411,6 +411,7 @@
             <label for="memberMode">Calculator mode</label>
             <select id="memberMode">
               <option value="beam" selected>Steel Beam</option>
+              <option value="timberBeam">Timber Beam</option>
               <option value="columnK">Steel Column</option>
             </select>
           </div>
@@ -1068,6 +1069,15 @@ function setTimberResultStatus(kind, text) {
   if (dot) dot.className = 'dot ' + (kind || '');
   txt.textContent = text || '';
 }
+function setTimberBeamResultStatus(kind, text) {
+  const holder = $('timberBeamResultStatus');
+  const txt = $('timberBeamResultStatusTxt');
+  if (!holder || !txt) return;
+  const dot = holder.querySelector('.dot');
+  if (dot) dot.className = 'dot ' + (kind || '');
+  txt.textContent = text || '';
+}
+window.setTimberBeamResultStatus = setTimberBeamResultStatus;
 function warnList(items) {
   const el = $('warnings');
   if (!items.length) { el.innerHTML = ''; return; }
@@ -2188,6 +2198,10 @@ compute();
     wrap.id = 'timberResults';
     wrap.className = 'hidden';
     wrap.innerHTML = `
+      <div class="row">
+        <div class="kv full"><div class="k">Grade · b × h</div><div class="v" id="timberGradeSize">–</div></div>
+      </div>
+
       <div class="row">
         <div class="kv"><div class="k">Maximum bending moment Mmax (kN·m)</div><div class="v" id="timberM">–</div></div>
         <div class="kv"><div class="k">Maximum shear force Vmax (kN)</div><div class="v" id="timberV">–</div></div>
@@ -3788,6 +3802,25 @@ compute();
     timber: { floors: AUTO_DEFAULT_FLOORS(), walls: AUTO_DEFAULT_WALLS() }
   };
 
+  // Bridge the ACTIVE automatic floor/wall state (AUTO_STATE) across the IIFE boundary so the
+  // Member Schedule can capture and restore it. This is the model the visible rows use; an
+  // earlier superseded model existed in another scope, so this definition (running later)
+  // intentionally overrides any earlier window.captureAutoRows/restoreAutoRows.
+  function _cloneAutoState(x){ try { return JSON.parse(JSON.stringify(x || [])); } catch (e) { return []; } }
+  window.captureAutoRows = function(mode){
+    const key = (mode === 'beam') ? 'beam' : 'timber';
+    const st = AUTO_STATE[key] || { floors: [], walls: [] };
+    return { floors: _cloneAutoState(st.floors), walls: _cloneAutoState(st.walls) };
+  };
+  window.restoreAutoRows = function(mode, floors, walls){
+    const key = (mode === 'beam') ? 'beam' : 'timber';
+    if (!AUTO_STATE[key]) return;
+    if (Array.isArray(floors) && floors.length) AUTO_STATE[key].floors = _cloneAutoState(floors);
+    if (Array.isArray(walls) && walls.length) AUTO_STATE[key].walls = _cloneAutoState(walls);
+    if (typeof renderFloorRows === 'function') renderFloorRows(key);
+    if (typeof renderWallRows === 'function') renderWallRows(key);
+  };
+
   function aid(id){ return document.getElementById(id); }
 
   function ensureAutoCss(){
@@ -4806,6 +4839,21 @@ compute();
   function syncBeamAutoRows(renderToo){
     return false;
   }
+  // Steel Beam auto take-down is computed by the backend; the renderer pushes the resulting
+  // dead/live line loads into the beam line-load rows (marked __auto = read-only, so the
+  // payload builder excludes them and the backend does not double-count).
+  window.applyBeamAutoLineLoads = function(dead, live, enabled){
+    if (typeof UDL_LOAD_ROWS === 'undefined' || !Array.isArray(UDL_LOAD_ROWS)) return;
+    ensureRowsArray(UDL_LOAD_ROWS, 'live');
+    if (enabled) {
+      UDL_LOAD_ROWS[0] = Object.assign({}, UDL_LOAD_ROWS[0], { w: round3(Number(dead) || 0), type: 'G', __auto: true });
+      UDL_LOAD_ROWS[1] = Object.assign({}, UDL_LOAD_ROWS[1], { w: round3(Number(live) || 0), type: 'live', __auto: true });
+    } else {
+      if (UDL_LOAD_ROWS[0]) UDL_LOAD_ROWS[0] = Object.assign({}, UDL_LOAD_ROWS[0], { __auto: false });
+      if (UDL_LOAD_ROWS[1]) UDL_LOAD_ROWS[1] = Object.assign({}, UDL_LOAD_ROWS[1], { __auto: false });
+    }
+    if (typeof renderUdlLoads === 'function') renderUdlLoads();
+  };
   function syncTimberAutoRows(renderToo){
     if (typeof TIMBER_LINE_LOAD_ROWS === 'undefined' || !Array.isArray(TIMBER_LINE_LOAD_ROWS)) return false;
     ensureRowsArray(TIMBER_LINE_LOAD_ROWS, 'live');
@@ -9640,6 +9688,7 @@ compute();
     const mode = currentMode();
 
     if (mode === 'beam') {
+      const auto = (typeof window.captureAutoRows === 'function') ? window.captureAutoRows('beam') : { floors: [], walls: [] };
       return {
         mode,
         staticState: Object.assign(
@@ -9649,8 +9698,8 @@ compute();
         ),
         udlRows: deepClone(typeof UDL_LOAD_ROWS !== 'undefined' ? UDL_LOAD_ROWS : []),
         pointRows: deepClone(typeof POINT_LOAD_ROWS !== 'undefined' ? POINT_LOAD_ROWS : []),
-        autoFloors: deepClone(typeof BEAM_AUTO_FLOORS !== 'undefined' ? BEAM_AUTO_FLOORS : []),
-        autoWalls: deepClone(typeof BEAM_AUTO_WALLS !== 'undefined' ? BEAM_AUTO_WALLS : [])
+        autoFloors: auto.floors,
+        autoWalls: auto.walls
       };
     }
 
@@ -9665,13 +9714,14 @@ compute();
       };
     }
 
+    const timberAuto = (typeof window.captureAutoRows === 'function') ? window.captureAutoRows('timber') : { floors: [], walls: [] };
     return {
       mode,
       staticState: captureInputState('#timberInputs input, #timberInputs select'),
       lineRows: deepClone(typeof TIMBER_LINE_LOAD_ROWS !== 'undefined' ? TIMBER_LINE_LOAD_ROWS : []),
       pointRows: deepClone(typeof TIMBER_POINT_LOAD_ROWS !== 'undefined' ? TIMBER_POINT_LOAD_ROWS : []),
-      autoFloors: deepClone(typeof TIMBER_AUTO_FLOORS !== 'undefined' ? TIMBER_AUTO_FLOORS : []),
-      autoWalls: deepClone(typeof TIMBER_AUTO_WALLS !== 'undefined' ? TIMBER_AUTO_WALLS : [])
+      autoFloors: timberAuto.floors,
+      autoWalls: timberAuto.walls
     };
   }
 
@@ -9693,16 +9743,10 @@ compute();
       if (!Array.isArray(POINT_LOAD_ROWS) || !POINT_LOAD_ROWS.length) POINT_LOAD_ROWS = [{ P: 0, a: 0, type: 'G' }, { P: 0, a: 0, type: 'live' }];
       if (typeof renderPointLoads === 'function') renderPointLoads();
 
-      if (typeof BEAM_AUTO_FLOORS !== 'undefined') BEAM_AUTO_FLOORS = deepClone(snapshot.autoFloors || []);
-      if (!Array.isArray(BEAM_AUTO_FLOORS) || !BEAM_AUTO_FLOORS.length) BEAM_AUTO_FLOORS = createDefaultAutoFloorRows();
-      if (typeof renderAutoSlabRows === 'function') renderAutoSlabRows('beam');
-
-      if (typeof BEAM_AUTO_WALLS !== 'undefined') BEAM_AUTO_WALLS = deepClone(snapshot.autoWalls || []);
-      if (!Array.isArray(BEAM_AUTO_WALLS) || !BEAM_AUTO_WALLS.length) BEAM_AUTO_WALLS = createDefaultAutoWallRows();
-      if (typeof renderAutoWallRows === 'function') renderAutoWallRows('beam');
-
       applyInputState(snapshot.staticState);
-      if (typeof syncBeamAutoRows === 'function') syncBeamAutoRows();
+      // Restore the automatic floor/wall rows through the bridge (these globals live in a
+      // different scope); this also re-renders them and re-syncs the auto line loads.
+      if (typeof window.restoreAutoRows === 'function') window.restoreAutoRows('beam', snapshot.autoFloors, snapshot.autoWalls);
     } else if (snapshot.mode === 'columnK') {
       applyInputState(snapshot.staticState);
       if (typeof syncColumnLengths === 'function') syncColumnLengths();
@@ -9715,16 +9759,10 @@ compute();
       if (!Array.isArray(TIMBER_POINT_LOAD_ROWS) || !TIMBER_POINT_LOAD_ROWS.length) TIMBER_POINT_LOAD_ROWS = [{ P: 0, a: 0, type: 'G' }, { P: 0, a: 0, type: 'live' }];
       if (typeof renderTimberPointLoads === 'function') renderTimberPointLoads();
 
-      if (typeof TIMBER_AUTO_FLOORS !== 'undefined') TIMBER_AUTO_FLOORS = deepClone(snapshot.autoFloors || []);
-      if (!Array.isArray(TIMBER_AUTO_FLOORS) || !TIMBER_AUTO_FLOORS.length) TIMBER_AUTO_FLOORS = createDefaultAutoFloorRows();
-      if (typeof renderAutoSlabRows === 'function') renderAutoSlabRows('timber');
-
-      if (typeof TIMBER_AUTO_WALLS !== 'undefined') TIMBER_AUTO_WALLS = deepClone(snapshot.autoWalls || []);
-      if (!Array.isArray(TIMBER_AUTO_WALLS) || !TIMBER_AUTO_WALLS.length) TIMBER_AUTO_WALLS = createDefaultAutoWallRows();
-      if (typeof renderAutoWallRows === 'function') renderAutoWallRows('timber');
-
       applyInputState(snapshot.staticState);
-      if (typeof syncTimberAutoRows === 'function') syncTimberAutoRows();
+      // Restore the automatic floor/wall rows through the bridge (different scope);
+      // re-renders them and re-syncs the auto line loads.
+      if (typeof window.restoreAutoRows === 'function') window.restoreAutoRows('timber', snapshot.autoFloors, snapshot.autoWalls);
     }
 
     document.querySelectorAll('input, select, textarea').forEach(el => {
@@ -9841,12 +9879,16 @@ compute();
       mode: mode,
       modeLabel: 'Timber Beam',
       section: currentSectionLabel(),
+      material: q('timberGrade') ? q('timberGrade').value : '–',
       length: length,
-      mainValue: q('timberMmax') ? q('timberMmax').textContent.trim() : '–',
-      shearValue: q('timberVmax') ? q('timberVmax').textContent.trim() : '–',
-      deflectionValue: q('timberDelta') ? q('timberDelta').textContent.trim() : '–',
-      controlValue: q('timberUtil') ? q('timberUtil').textContent.trim() : '–',
-      statusText: q('timberResultStatusTxt') ? q('timberResultStatusTxt').textContent.trim() : 'Ready',
+      // Prefer the EC5 backend result (cached by the overlay) so the schedule reflects the
+      // EC5 engine; fall back to the rendered cards if the overlay has not run yet.
+      mainValue: (window.__lastTimberEc5 && window.__lastTimberEc5.MEd) || (q('timberM') ? q('timberM').textContent.trim() : '–'),
+      shearValue: (window.__lastTimberEc5 && window.__lastTimberEc5.VEd) || (q('timberV') ? q('timberV').textContent.trim() : '–'),
+      deflectionValue: (window.__lastTimberEc5 && window.__lastTimberEc5.deflStr) || (q('timberDefl') ? q('timberDefl').textContent.trim() : '–'),
+      controlValue: (window.__lastTimberEc5 && window.__lastTimberEc5.control) || (q('timberUtilDefl') ? q('timberUtilDefl').textContent.trim() : '–'),
+      statusText: (window.__lastTimberEc5 && window.__lastTimberEc5.status) || (q('timberResultStatusTxt') ? q('timberResultStatusTxt').textContent.trim() : 'Ready'),
+      statusKind: (window.__lastTimberEc5 && window.__lastTimberEc5.statusKind) || statusKindFromHolder('timberResultStatus'),
       snapshot: buildCurrentMemberSnapshot()
     };
   }
@@ -10241,7 +10283,7 @@ compute();
 })();
 </script>
 
-<script type="module" src="/static/js/app.js?v=6"></script>
+<script type="module" src="/static/js/app.js?v=11"></script>
 
 </body>
 </html>

@@ -107,6 +107,13 @@ function paintAutoLoadBreakdown(result) {
     '<div>Auto live line load Qk = <span class="value">' + fmt(breakdown.auto_live_load_kN_m, 3) + ' kN/m</span></div>' +
     '<div>Floor contribution = <span class="value">' + fmt(breakdown.floor_contribution_kN_m, 3) + ' kN/m</span></div>' +
     '<div>Wall contribution = <span class="value">' + fmt(breakdown.wall_contribution_kN_m, 3) + ' kN/m</span></div>';
+
+  // Mirror the backend auto take-down into the beam line-load rows (read-only/auto) so the
+  // form matches the summary, exactly like Timber. These rows are excluded from the payload,
+  // so the backend take-down is not double-counted.
+  if (typeof window.applyBeamAutoLineLoads === "function") {
+    window.applyBeamAutoLineLoads(breakdown.auto_dead_load_kN_m, breakdown.auto_live_load_kN_m, breakdown.enabled === true);
+  }
 }
 
 export function paintWarnings(warnings, errors) {

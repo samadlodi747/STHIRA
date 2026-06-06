@@ -32,6 +32,7 @@ class GeneratedReport:
 # Saved member entries use these mode labels (set by the frontend schedule).
 _BEAM_LABEL = "Steel Beam"
 _COLUMN_LABEL = "Steel Column"
+_TIMBER_LABEL = "Timber Beam"
 
 
 class _NumberedCanvas(pdfcanvas.Canvas):
@@ -290,6 +291,7 @@ def generate_member_schedule_pdf_report(
 
     beams = [m for m in members if str(m.get("modeLabel")) == _BEAM_LABEL]
     columns = [m for m in members if str(m.get("modeLabel")) == _COLUMN_LABEL]
+    timber = [m for m in members if str(m.get("modeLabel")) == _TIMBER_LABEL]
 
     page_size = landscape(A4) if orientation == "landscape" else portrait(A4)
     left, right, top, bottom = default_margins()
@@ -374,12 +376,32 @@ def generate_member_schedule_pdf_report(
         story.append(Paragraph("No saved columns in the member schedule.", styles["normal"]))
     story.append(Spacer(1, 6 * mm))
 
-    # Project summary.
-    utils = [u for u in (_to_float(m.get("controlValue")) for m in (beams + columns)) if u is not None]
+    # Timber beam schedule.
+    if timber:
+        timber_header = ["Member", "Material", "Selected Section", "Span (m)", "δmax (mm)", "Control Util. (max)", "Status"]
+        timber_fractions = [1.7, 1.2, 1.8, 1.0, 2.0, 1.6, 1.1]
+        timber_rows = [
+            [
+                _text(m.get("name")),
+                _text(m.get("material")),
+                _text(m.get("section")),
+                _text(m.get("length")),
+                _deflection_cell(m.get("deflectionValue"), value_style),
+                _format_util_display(m.get("controlValue")),
+                _status_label(m),
+            ]
+            for m in timber
+        ]
+        story.append(_banner_table("TIMBER BEAM SCHEDULE", timber_header, timber_rows, _scaled_widths(timber_fractions, available), portrait_mode=portrait_mode, status_col=6))
+        story.append(Spacer(1, 6 * mm))
+
+    # Project summary (beams + timber beams + columns).
+    summary_members = beams + timber + columns
+    utils = [u for u in (_to_float(m.get("controlValue")) for m in summary_members) if u is not None]
     # Off-scale sentinels (e.g. 999.0) are excluded from the average so it reflects real
     # engineering utilizations rather than being skewed by degenerate failures.
     on_scale = [u for u in utils if u <= _OFF_SCALE_UTIL]
-    pass_flags = [_is_passing(m) for m in (beams + columns)]
+    pass_flags = [_is_passing(m) for m in summary_members]
     passing = sum(1 for f in pass_flags if f is True)
     failing = sum(1 for f in pass_flags if f is False)
     max_util = max(utils) if utils else None
@@ -387,8 +409,9 @@ def generate_member_schedule_pdf_report(
 
     summary_rows = [
         ["Total Beams", str(len(beams))],
+        ["Total Timber Beams", str(len(timber))],
         ["Total Columns", str(len(columns))],
-        ["Total Members", str(len(beams) + len(columns))],
+        ["Total Members", str(len(summary_members))],
         ["Maximum Utilization", _format_util_display(max_util) if max_util is not None else "-"],
         ["Average Utilization", f"{avg_util:.3f}" if avg_util is not None else "-"],
         ["Passing Members", str(passing)],

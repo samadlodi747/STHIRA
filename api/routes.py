@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse, Response
 
 from core.steel.beam import calculate_steel_beam
 from core.steel.column import calculate_steel_column
+from core.timber.beam import calculate_timber_beam
 from models.steel import (
     MemberScheduleRequest,
     SteelBeamApiResponse,
@@ -10,9 +11,11 @@ from models.steel import (
     SteelColumnApiResponse,
     SteelColumnRequest,
 )
+from models.timber import TimberBeamApiResponse, TimberBeamRequest
 from reports.generators.member_schedule_excel import generate_member_schedule_excel
 from reports.generators.member_schedule_report import generate_member_schedule_pdf_report
 from reports.generators.steel_beam_report import generate_steel_beam_pdf_report
+from reports.generators.timber_beam_report import generate_timber_beam_pdf_report
 from reports.generators.steel_column_report import generate_steel_column_pdf_report
 from utils.api_errors import api_response, friendly_engineering_error
 
@@ -227,12 +230,71 @@ async def member_schedule_excel(payload: MemberScheduleRequest):
         )
 
 
-@router.post("/calculate/timber-beam")
-async def timber_beam() -> None:
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Timber beam migration is planned for Phase 3.",
+@router.get("/timber/options")
+async def timber_options() -> dict:
+    # Drives the Timber Beam dropdowns from the database so new grades/sections appear
+    # in the UI without any frontend code change.
+    from core.timber.sections import load_materials, load_sections
+
+    return api_response(
+        success=True,
+        results={
+            "grades": [
+                {"grade": m["grade"], "type": m["type"]}
+                for m in load_materials()
+            ],
+            "sections": [
+                {"name": s["name"], "width_mm": s["width_mm"], "depth_mm": s["depth_mm"]}
+                for s in load_sections()
+            ],
+        },
     )
+
+
+@router.post("/calculate/timber-beam", response_model=TimberBeamApiResponse)
+async def timber_beam(payload: TimberBeamRequest) -> dict | JSONResponse:
+    try:
+        return calculate_timber_beam(payload)
+    except ValueError as exc:
+        error = friendly_engineering_error(str(exc))
+        print("[timber-beam] validation failure:", error)
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            content=api_response(success=False, errors=[error]),
+        )
+    except Exception as exc:
+        print("[timber-beam] exception:", {"exception_type": type(exc).__name__, "exception": str(exc)})
+        raise
+
+
+@router.post("/reports/timber-beam", response_model=None)
+async def timber_beam_report(payload: TimberBeamRequest):
+    print("[timber-beam-report] report payload:", payload.model_dump(mode="json"))
+    try:
+        calculation_response = calculate_timber_beam(payload)
+        report = generate_timber_beam_pdf_report(
+            request_data=payload.model_dump(mode="json"),
+            calculation_response=calculation_response,
+        )
+        print("[timber-beam-report] export success:", {"filename": report.filename, "bytes": len(report.content)})
+        return Response(
+            content=report.content,
+            media_type=report.media_type,
+            headers={"Content-Disposition": f'attachment; filename="{report.filename}"'},
+        )
+    except ValueError as exc:
+        error = friendly_engineering_error(str(exc))
+        print("[timber-beam-report] validation failure:", error)
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            content=api_response(success=False, errors=[error]),
+        )
+    except Exception as exc:
+        print("[timber-beam-report] export failure:", {"exception_type": type(exc).__name__, "exception": str(exc)})
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content=api_response(success=False, errors=["Timber beam PDF report could not be generated."]),
+        )
 
 
 @router.post("/calculate/load-combinations")

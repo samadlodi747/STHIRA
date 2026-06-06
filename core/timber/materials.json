@@ -1,0 +1,30 @@
+{
+  "_comment": "Timber grade database (EC5 / EN 338 solid, EN 14080 glulam). Units: f in N/mm^2, E in N/mm^2, density (rho_k) in kg/m^3. gamma_M per EN 1995-1-1 Table 2.3 (solid/hardwood 1.3, glulam 1.25). Values align with the original STHIRA timber grade library so the EC5 backend matches the preserved UI. Add grades here without code changes.",
+  "materials": [
+    {"grade": "C14", "type": "solid",  "fm_k": 14.0, "fv_k": 1.7, "E_mean": 7000.0,  "density": 290.0, "gamma_M": 1.3},
+    {"grade": "C16", "type": "solid",  "fm_k": 16.0, "fv_k": 1.8, "E_mean": 8000.0,  "density": 310.0, "gamma_M": 1.3},
+    {"grade": "C18", "type": "solid",  "fm_k": 18.0, "fv_k": 2.0, "E_mean": 9000.0,  "density": 320.0, "gamma_M": 1.3},
+    {"grade": "C20", "type": "solid",  "fm_k": 20.0, "fv_k": 2.2, "E_mean": 9500.0,  "density": 330.0, "gamma_M": 1.3},
+    {"grade": "C22", "type": "solid",  "fm_k": 22.0, "fv_k": 2.4, "E_mean": 10000.0, "density": 340.0, "gamma_M": 1.3},
+    {"grade": "C24", "type": "solid",  "fm_k": 24.0, "fv_k": 2.5, "E_mean": 11000.0, "density": 350.0, "gamma_M": 1.3},
+    {"grade": "C27", "type": "solid",  "fm_k": 27.0, "fv_k": 2.8, "E_mean": 11500.0, "density": 370.0, "gamma_M": 1.3},
+    {"grade": "C30", "type": "solid",  "fm_k": 30.0, "fv_k": 3.0, "E_mean": 12000.0, "density": 380.0, "gamma_M": 1.3},
+    {"grade": "C35", "type": "solid",  "fm_k": 35.0, "fv_k": 3.4, "E_mean": 13000.0, "density": 400.0, "gamma_M": 1.3},
+    {"grade": "C40", "type": "solid",  "fm_k": 40.0, "fv_k": 3.8, "E_mean": 14000.0, "density": 420.0, "gamma_M": 1.3},
+    {"grade": "C45", "type": "solid",  "fm_k": 45.0, "fv_k": 3.8, "E_mean": 15000.0, "density": 440.0, "gamma_M": 1.3},
+    {"grade": "C50", "type": "solid",  "fm_k": 50.0, "fv_k": 3.8, "E_mean": 16000.0, "density": 460.0, "gamma_M": 1.3},
+    {"grade": "D30", "type": "hardwood", "fm_k": 30.0, "fv_k": 3.0, "E_mean": 10000.0, "density": 530.0, "gamma_M": 1.3},
+    {"grade": "D35", "type": "hardwood", "fm_k": 35.0, "fv_k": 3.4, "E_mean": 10000.0, "density": 560.0, "gamma_M": 1.3},
+    {"grade": "D40", "type": "hardwood", "fm_k": 40.0, "fv_k": 3.8, "E_mean": 11000.0, "density": 590.0, "gamma_M": 1.3},
+    {"grade": "D50", "type": "hardwood", "fm_k": 50.0, "fv_k": 4.6, "E_mean": 14000.0, "density": 650.0, "gamma_M": 1.3},
+    {"grade": "D60", "type": "hardwood", "fm_k": 60.0, "fv_k": 5.3, "E_mean": 17000.0, "density": 700.0, "gamma_M": 1.3},
+    {"grade": "D70", "type": "hardwood", "fm_k": 70.0, "fv_k": 6.0, "E_mean": 20000.0, "density": 900.0, "gamma_M": 1.3},
+    {"grade": "GL24", "type": "glulam", "fm_k": 24.0, "fv_k": 2.7, "E_mean": 11600.0, "density": 380.0, "gamma_M": 1.25},
+    {"grade": "GL28", "type": "glulam", "fm_k": 28.0, "fv_k": 3.2, "E_mean": 12600.0, "density": 410.0, "gamma_M": 1.25},
+    {"grade": "GL32", "type": "glulam", "fm_k": 32.0, "fv_k": 3.8, "E_mean": 13700.0, "density": 430.0, "gamma_M": 1.25},
+    {"grade": "GL36", "type": "glulam", "fm_k": 36.0, "fv_k": 4.3, "E_mean": 14700.0, "density": 450.0, "gamma_M": 1.25},
+    {"grade": "GL24h", "type": "glulam", "fm_k": 24.0, "fv_k": 3.5, "E_mean": 11500.0, "density": 420.0, "gamma_M": 1.25},
+    {"grade": "GL28h", "type": "glulam", "fm_k": 28.0, "fv_k": 3.5, "E_mean": 12600.0, "density": 460.0, "gamma_M": 1.25},
+    {"grade": "GL32h", "type": "glulam", "fm_k": 32.0, "fv_k": 3.5, "E_mean": 14200.0, "density": 490.0, "gamma_M": 1.25}
+  ]
+}
